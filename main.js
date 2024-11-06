@@ -92,7 +92,7 @@ io.on("connection", (socket)=> {
                 games[room.toString()]["bumpSaveOwner"] = "blue"
             }
             //Show/generate the board for everyone
-            io.to(room.toString()).emit("setTurn", {"turn":firstTeam, "prevCard":"spike"})
+            io.to(room.toString()).emit("setTurn", {"turn":firstTeam, "prevCard":"spike", "prevCardRow":0, "prevCardCol":0})
             io.to(room.toString()).emit("showBoard", {"blue":games[room.toString()]["blueRevealed"], "pink":games[room.toString()]["pinkRevealed"]})
             
         }
@@ -107,6 +107,8 @@ io.on("connection", (socket)=> {
         var col = data.col;
         var turn = data.turn;
         var prevCard = data.prevCard;
+        var prevCardRow = data.prevCardRow;
+        var prevCardCol = data.prevCardCol;
         var sideShooting = null;
         if (row > 2) {
             sideShooting = "blue";
@@ -123,29 +125,143 @@ io.on("connection", (socket)=> {
                     io.to(games[room.toString()][games[room.toString()]["bumpSaveOwner"]]).emit("chooseBumpSave", {"row":row, "col":col})
                 }
                 else {
-                    if (sideShooting == "blue") {
-                        row = row - 3;
-                    }
-                    var board = sideShooting + "Revealed";
-                    var cipher = sideShooting + "Side";
-                    //Hit, change/reveal the board
-                    console.log(board)
-                    console.log(cipher)
-                    games[room.toString()][board][row][col] = games[room.toString()][cipher][row][col];
-                    var whiffs = room.toString() + "Whiffs";
-                    if (games[room.toString()][cipher][row][col] == "whiff") {
-                        //Increment the whiff counter
-                        games[room.toString()][whiffs] += 1;
-                    }
-                    //Switch Turns
-                    io.to(room.toString()).emit("setTurn", {"turn":sideShooting, "prevCard":games[room.toString()][cipher][row][col]});
-                    io.to(room.toString()).emit("showBoard", {"blue":games[room.toString()]["blueRevealed"], "pink":games[room.toString()]["pinkRevealed"]})
+                    landAShot(sideShooting, room, row, col, prevCard);
                 }
             }
         }
+        else if (prevCard == "set") {
+            var hDistance = Math.abs(prevCardCol-col);
+            var vDistance = Math.abs(prevCardRow-row);
+            console.log(hDistance)
+            console.log(vDistance)
+            if (hDistance > 0 && vDistance > 0) {
+                //If both are greater than zero, this is a diagonal shot, and is not allowed
+                io.to(socket.id).emit("shootingError", {"message":"Bumps/Sets cannot be diagonal"})
+                return;
+            }
+            if (hDistance > 1 || vDistance > 1) {
+                //Bumps can only go a distance of one
+                io.to(socket.id).emit("shootingError", {"message":"Out of range for a set"})
+                return;
+            }
+            //If it passes these checks, this is a valid shot
+            if (sideShooting == turn) {
+                //Reveal to the player what card they have selected, and if they want to continue
+                var tempRow = row;
+                if (sideShooting == "blue") {
+                    tempRow = row - 3;
+                }
+                var cipher = sideShooting + "Side";
+                var cardVal = games[room.toString()][cipher][tempRow][col];
+                var message = "Are you sure you want to select this card? It is a " + cardVal.toString();
+                io.to(socket.id).emit("shotConfirmation", {"message":message, "row":row, "col":col});
+            }
+            else {
+                if (games[room.toString()]["bumpSaved"] == false) {
+                    io.to(games[room.toString()][games[room.toString()]["bumpSaveOwner"]]).emit("chooseBumpSave", {"row":row, "col":col})
+                }
+                else {
+                    landAShot(sideShooting, room, row, col, prevCard);
+                }
+            }
+        
+    }
+    else if (prevCard == "bump") {
+        var hDistance = Math.abs(prevCardCol-col);
+        var vDistance = Math.abs(prevCardRow-row);
+        console.log(hDistance)
+        console.log(vDistance)
+        if (hDistance > 0 && vDistance > 0) {
+            //If both are greater than zero, this is a diagonal shot, and is not allowed
+            io.to(socket.id).emit("shootingError", {"message":"Bumps/Sets cannot be diagonal"})
+            return;
+        }
+        if (hDistance > 2 || vDistance > 2) {
+            //Bumps can only go a distance of one
+            io.to(socket.id).emit("shootingError", {"message":"Out of range for a bump"})
+            return;
+        }
+        //If it passes these checks, this is a valid shot
+        if (sideShooting == turn) {
+            //Reveal to the player what card they have selected, and if they want to continue
+            var tempRow = row;
+            if (sideShooting == "blue") {
+                tempRow = row - 3;
+            }
+            var cipher = sideShooting + "Side";
+            var cardVal = games[room.toString()][cipher][tempRow][col];
+            var message = "Are you sure you want to select this card? It is a " + cardVal.toString();
+            io.to(socket.id).emit("shotConfirmation", {"message":message, "row":row, "col":col});
+        }
+        else {
+            if (games[room.toString()]["bumpSaved"] == false) {
+                io.to(games[room.toString()][games[room.toString()]["bumpSaveOwner"]]).emit("chooseBumpSave", {"row":row, "col":col})
+            }
+            else {
+                landAShot(sideShooting, room, row, col, prevCard);
+            }
+        }
+    }
     });
+
+    socket.on("confirmShot", (data)=> {
+       const setIter = socket.rooms.values()
+       setIter.next();
+       const room = setIter.next().value;
+       var row = data.row
+       var col = data.col
+       var sideShooting = null;
+        if (row > 2) {
+            sideShooting = "blue";
+        }
+        else {
+            sideShooting = "pink";
+        }
+        landAShot(sideShooting, room, row, col, "whiff");
+    })
+
+
 })
 
 server.listen(3000, () => {
     console.log('server running at http://localhost:3000');
   });
+
+
+async function later(delay) {
+    return new Promise(function(resolve) {
+        setTimeout(resolve, delay);
+    });
+}
+
+
+
+function landAShot(sideShooting, room, row, col, prevCard) {
+    if (sideShooting == "blue") {
+        row = row - 3;
+    }
+    var board = sideShooting + "Revealed";
+    var cipher = sideShooting + "Side";
+    //Hit, change/reveal the board
+    console.log(board)
+    console.log(cipher)
+    games[room.toString()][board][row][col] = games[room.toString()][cipher][row][col];
+    var whiffs = sideShooting + "Whiffs";
+    if (games[room.toString()][cipher][row][col] == "whiff") {
+        //Increment the whiff counter
+        games[room.toString()][whiffs] += 1;
+    }
+    console.log(games);
+    if (games[room.toString()][whiffs] == 3) {
+        console.log("Did someone whiff?");
+        io.to(room.toString()).emit("shootingError", {"message":sideShooting + " lost :( Refresh to play again..."})
+        return;
+    }
+    prevCard = games[room.toString()][cipher][row][col];
+    if (sideShooting == "blue") {
+        row = row + 3;
+    }
+    //Switch Turns
+    io.to(room.toString()).emit("setTurn", {"turn":sideShooting, "prevCard":prevCard, "prevCardRow":row, "prevCardCol":col});
+    io.to(room.toString()).emit("showBoard", {"blue":games[room.toString()]["blueRevealed"], "pink":games[room.toString()]["pinkRevealed"]})
+}

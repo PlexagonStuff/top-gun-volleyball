@@ -9,6 +9,8 @@ var currentSide = null;
 var heldCard = null;
 var currentTurn = null;
 var prevShot = null;
+var prevShotRow = 0;
+var prevShotCol = 0;
 var cardSide = [[null,null,null],
                 [null,null,null],
                 [null,null,null]];
@@ -37,6 +39,8 @@ socket.on("placeCards", (data)=> {
 socket.on("setTurn", (data)=> {
     currentTurn = data.turn;
     prevShot = data.prevCard;
+    prevShotCol = data.prevCardCol;
+    prevShotRow = data.prevCardRow;
     console.log("Turn has been set!")
 });
 
@@ -50,12 +54,35 @@ socket.on("showBoard", (data)=> {
     var turnIndicator = document.createElement("h3");
     turnIndicator.id = "turnIndicator";
     volleyball.appendChild(turnIndicator);
-    document.getElementById("turnIndicator").textContent = "It is " + currentTurn.toString() + "'" + "s turn (You are" + currentSide + ")";
+    document.getElementById("turnIndicator").textContent = "It is " + currentTurn.toString() + "'" + "s turn (You are " + currentSide + ")";
     generateSide(data.blue, data.pink, "pink")
     generateSide(data.blue,data.pink,"blue")
     var errorLog = document.createElement("p");
     errorLog.id = "errorLog"
     document.getElementById("volleyball").appendChild(errorLog);
+})
+
+socket.on("shootingError", (data)=> {
+  document.getElementById("errorLog").textContent = data.message
+})
+
+socket.on("shotConfirmation", (data)=> {
+  document.getElementById("errorLog").textContent = data.message
+  var yesButton = document.createElement("button");
+  yesButton.textContent = "Yes"
+  yesButton.onclick = function() {
+    socket.emit("confirmShot", {"row":data.row, "col":data.col});
+    document.getElementById("errorLog").remove();
+  }
+  document.getElementById("errorLog").appendChild(yesButton);
+  var noButton = document.createElement("button");
+  noButton.textContent = "No"
+  noButton.onclick = function() {
+    document.getElementById("errorLog").removeChild(yesButton)
+    document.getElementById("errorLog").textContent = ""
+    document.getElementById("errorLog").removeChild(noButton)
+  }
+  document.getElementById("errorLog").appendChild(noButton);
 })
 
 
@@ -92,8 +119,11 @@ function generateSide(blueSide, pinkSide, side) {
       selectButton.onclick = function() {
         console.log(currentSide + " "+ currentTurn);
         if (currentSide == currentTurn) {
-            console.log(currentSide);
-            socket.emit("evaluateSelection", {"row": parseInt(selectButton.value.charAt(0)), "col":parseInt(selectButton.value.charAt(1)),"turn": currentTurn, "prevCard":prevShot});
+          //This blocks playing on exposed cards on the opponents side, because that is not how the game works
+            if (selectButton.textContent == "blank" || side == currentTurn) {
+              console.log(currentSide);
+              socket.emit("evaluateSelection", {"row": parseInt(selectButton.value.charAt(0)), "col":parseInt(selectButton.value.charAt(1)),"turn": currentTurn, "prevCard":prevShot, "prevCardRow":prevShotRow, "prevCardCol":prevShotCol});
+            }
         } 
       }
       cell.appendChild(selectButton);
@@ -131,14 +161,15 @@ function generateCardTable() {
       selectButton.textContent = "Hello :)"
       selectButton.value = i.toString() + j.toString()
       selectButton.onclick = function() {
-        if (selectButton.textContent == "Hello :)") {
+        if (selectButton.textContent == "Hello :)" && heldCard != null) {
             selectButton.textContent = heldCard.innerText;
             cardSide[i][j] = heldCard.innerText;
             heldCard.remove();
-            if (document.getElementById("cardHandler").children.length == 0) {
+            if (document.getElementById("cardHandler").children.length == 1) {
                 socket.emit("cardsPlaced", {"side": currentSide, "board": cardSide})
             }
-        } 
+        }
+        heldCard = null; 
       }
       cell.appendChild(selectButton);
       row.appendChild(cell);
@@ -168,5 +199,18 @@ function generateHand() {
         }
         row.appendChild(card);
     }
+    let random = document.createElement("button");
+    random.textContent = "Random Spread";
+    random.onclick = function() {
+      for (var i = 0; i < 3; i++) {
+        for (var j =0; j < 3; j++) {
+          var randCardIndex = Math.floor(Math.random() * hand.length);
+          cardSide[i][j] = hand[randCardIndex];
+          hand.splice(randCardIndex, 1);
+        }
+      }
+      socket.emit("cardsPlaced", {"side": currentSide, "board": cardSide})
+    }
+    row.appendChild(random);
     document.getElementById("setup").appendChild(row);
 }

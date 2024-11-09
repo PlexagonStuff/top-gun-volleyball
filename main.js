@@ -98,7 +98,7 @@ io.on("connection", (socket)=> {
         }
     });
 
-    socket.on("evaluateSelection", (data)=> {
+    socket.on("evaluateSelection",  async (data)=> {
         console.log(data);
         const setIter = socket.rooms.values()
         setIter.next();
@@ -125,7 +125,7 @@ io.on("connection", (socket)=> {
                     io.to(games[room.toString()][games[room.toString()]["bumpSaveOwner"]]).emit("chooseBumpSave", {"row":row, "col":col})
                 }
                 else {
-                    landAShot(sideShooting, room, row, col, prevCard);
+                    await landAShot(sideShooting, room, row, col, prevCard);
                 }
             }
         }
@@ -161,7 +161,7 @@ io.on("connection", (socket)=> {
                     io.to(games[room.toString()][games[room.toString()]["bumpSaveOwner"]]).emit("chooseBumpSave", {"row":row, "col":col})
                 }
                 else {
-                    landAShot(sideShooting, room, row, col, prevCard);
+                    await landAShot(sideShooting, room, row, col, prevCard);
                 }
             }
         
@@ -198,13 +198,13 @@ io.on("connection", (socket)=> {
                 io.to(games[room.toString()][games[room.toString()]["bumpSaveOwner"]]).emit("chooseBumpSave", {"row":row, "col":col})
             }
             else {
-                landAShot(sideShooting, room, row, col, prevCard);
+                await landAShot(sideShooting, room, row, col, prevCard);
             }
         }
     }
     });
 
-    socket.on("confirmShot", (data)=> {
+    socket.on("confirmShot", async (data)=> {
        const setIter = socket.rooms.values()
        setIter.next();
        const room = setIter.next().value;
@@ -217,7 +217,7 @@ io.on("connection", (socket)=> {
         else {
             sideShooting = "pink";
         }
-        landAShot(sideShooting, room, row, col, "whiff");
+        await landAShot(sideShooting, room, row, col, "whiff");
     })
 
 
@@ -236,7 +236,7 @@ async function later(delay) {
 
 
 
-function landAShot(sideShooting, room, row, col, prevCard) {
+async function landAShot(sideShooting, room, row, col, prevCard) {
     if (sideShooting == "blue") {
         row = row - 3;
     }
@@ -254,7 +254,11 @@ function landAShot(sideShooting, room, row, col, prevCard) {
     console.log(games);
     if (games[room.toString()][whiffs] == 3) {
         console.log("Did someone whiff?");
-        io.to(room.toString()).emit("shootingError", {"message":sideShooting + " lost :( Refresh to play again..."})
+        io.to(room.toString()).emit("shootingError", {"message":sideShooting + " lost :( "})
+        await later(3000);
+        io.to(room.toString()).emit("return");
+        io.in(room).disconnectSockets();
+        delete games[room];
         return;
     }
     prevCard = games[room.toString()][cipher][row][col];

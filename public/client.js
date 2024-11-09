@@ -1,4 +1,5 @@
-const socket = io();
+const socket = io({transports: ['websocket'],
+  secure: true});
 
 socket.on("connect", () => {
 	console.log("Connected");
@@ -7,7 +8,7 @@ socket.on("connect", () => {
 var hand = ["set", "whiff", "bump", "whiff", "set", "spike", "whiff", "bump", "spike"]
 var currentSide = null;
 var heldCard = null;
-var currentTurn = null;
+var currentTurn = "";
 var prevShot = null;
 var prevShotRow = 0;
 var prevShotCol = 0;
@@ -35,6 +36,12 @@ socket.on("placeCards", (data)=> {
         
     }
 });
+
+socket.on("return", ()=> {
+  document.getElementById("startScreen").style.display = "block"
+  document.getElementById("setup").style.display = "none"
+  document.getElementById("volleyball").style.display = "none"
+})
 
 socket.on("setTurn", (data)=> {
     currentTurn = data.turn;

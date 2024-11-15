@@ -7,7 +7,7 @@ import {Server} from 'socket.io'
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server, {path: '/.proxy', transports: ['websocket']});
+const io = new Server(server, {path: '/.proxy'});
 var rooms = [];
 var games = {}
 const __dirname = dirname(fileURLToPath(import.meta.url));

@@ -1,5 +1,4 @@
-const socket = io("wss://1302044343674077184.discordsays.com/.proxy/", {transports: ['websocket'],
-  path: '/socket.io',
+const socket = io({transports: ['websocket'],
   secure: true});
 
 socket.on("connect", () => {

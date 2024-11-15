@@ -95,6 +95,7 @@ socket.on("shotConfirmation", (data)=> {
 
 
 document.getElementById("joinRoom").onclick = function(){
+    socket.connect();
     socket.emit("joinRoom", {"room":document.getElementById("roomName").value});
 };
 
